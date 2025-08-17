@@ -404,7 +404,7 @@ class WineQualityMLPipeline:
 def main():
     """Main training pipeline function"""
     parser = argparse.ArgumentParser(description='Wine Quality ML Training Pipeline')
-    parser.add_argument('--data-path', required=True, help='winedata.csv')
+    parser.add_argument('--data-path', required=True, help='Path to dataset CSV file')
     parser.add_argument('--config', help='Path to configuration JSON file')
     parser.add_argument('--test-size', type=float, default=0.2, help='Test set size (default: 0.2)')
     parser.add_argument('--random-seed', type=int, default=42, help='Random seed (default: 42)')
