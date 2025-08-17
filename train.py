@@ -2,6 +2,7 @@
 """
 Wine Quality ML Training Pipeline
 CI/CD Ready implementation for training and deploying ML models
+Modified to save all outputs in the same directory as the script
 """
 
 import os
@@ -44,7 +45,7 @@ logger = logging.getLogger(__name__)
 class WineQualityMLPipeline:
     """
     Complete ML pipeline for wine quality prediction
-    Designed for CI/CD deployment
+    Designed for CI/CD deployment - saves all files in current directory
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -55,13 +56,9 @@ class WineQualityMLPipeline:
         self.metrics = {}
         self.feature_names = []
         
-        # Create output directories
-        self.model_dir = Path(config.get('model_dir', 'models'))
-        self.artifact_dir = Path(config.get('artifact_dir', 'artifacts'))
-        self.report_dir = Path(config.get('report_dir', 'reports'))
-        
-        for directory in [self.model_dir, self.artifact_dir, self.report_dir]:
-            directory.mkdir(parents=True, exist_ok=True)
+        # Use current directory for all outputs (GitHub-friendly)
+        self.current_dir = Path.cwd()
+        logger.info(f"Working directory: {self.current_dir}")
     
     def load_and_validate_data(self, file_path: str) -> pd.DataFrame:
         """Load and validate the dataset"""
@@ -338,8 +335,9 @@ class WineQualityMLPipeline:
             # Convert numpy types to Python types for JSON serialization
             class_report_serializable = self._convert_numpy_types(class_report)
             
-            # Save detailed report
-            report_path = self.report_dir / f"classification_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            # Save detailed report in current directory
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            report_path = self.current_dir / f"classification_report_{timestamp}.json"
             with open(report_path, 'w') as f:
                 json.dump(class_report_serializable, f, indent=2)
                 
@@ -356,7 +354,7 @@ class WineQualityMLPipeline:
             # Predictions
             y_pred = self.model.predict(X_test)
             
-            # Confusion Matrix
+            # Confusion Matrix - save in current directory
             plt.figure(figsize=(8, 6))
             cm = confusion_matrix(y_test, y_pred)
             sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
@@ -366,10 +364,10 @@ class WineQualityMLPipeline:
             plt.xlabel('Predicted')
             plt.ylabel('Actual')
             plt.tight_layout()
-            plt.savefig(self.artifact_dir / 'confusion_matrix.png', dpi=300, bbox_inches='tight')
+            plt.savefig(self.current_dir / 'confusion_matrix.png', dpi=300, bbox_inches='tight')
             plt.close()
             
-            # Feature Importance (if available)
+            # Feature Importance (if available) - save in current directory
             if hasattr(self.model, 'feature_importances_'):
                 plt.figure(figsize=(10, 8))
                 importance_df = pd.DataFrame({
@@ -381,19 +379,19 @@ class WineQualityMLPipeline:
                 plt.title('Feature Importance')
                 plt.xlabel('Importance')
                 plt.tight_layout()
-                plt.savefig(self.artifact_dir / 'feature_importance.png', dpi=300, bbox_inches='tight')
+                plt.savefig(self.current_dir / 'feature_importance.png', dpi=300, bbox_inches='tight')
                 plt.close()
             
-            logger.info("Visualizations saved successfully")
+            logger.info("Visualizations saved to current directory")
             
         except Exception as e:
             logger.error(f"Error generating visualizations: {str(e)}")
     
     def save_model(self) -> str:
-        """Save the trained model and preprocessing components"""
+        """Save the trained model and preprocessing components in current directory"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         model_filename = f"wine_quality_model_{timestamp}.joblib"
-        model_path = self.model_dir / model_filename
+        model_path = self.current_dir / model_filename
         
         # Create model package
         model_package = {
@@ -405,14 +403,14 @@ class WineQualityMLPipeline:
             'timestamp': timestamp
         }
         
-        # Save model package
+        # Save model package in current directory
         joblib.dump(model_package, model_path)
         logger.info(f"Model saved to {model_path}")
         
         # Convert label encoder classes to serializable format
         label_classes = [str(cls) for cls in self.label_encoder.classes_]
         
-        # Save metadata with proper type conversion
+        # Save metadata with proper type conversion in current directory
         metadata = {
             'model_path': str(model_path),
             'model_type': type(self.model).__name__,
@@ -423,22 +421,24 @@ class WineQualityMLPipeline:
             'training_timestamp': timestamp
         }
         
-        metadata_path = self.artifact_dir / f"model_metadata_{timestamp}.json"
+        metadata_path = self.current_dir / f"model_metadata_{timestamp}.json"
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2)
         
-        # Save latest model symlink for production
-        latest_model_path = self.model_dir / "latest_model.joblib"
+        # Save latest model symlink for production in current directory
+        latest_model_path = self.current_dir / "latest_model.joblib"
         if latest_model_path.exists():
             latest_model_path.unlink()
         
         # Create relative symlink to avoid absolute path issues
         try:
             latest_model_path.symlink_to(model_filename)
+            logger.info(f"Latest model symlink created: {latest_model_path}")
         except OSError:
             # Fallback: copy file if symlink fails (e.g., on Windows)
             import shutil
             shutil.copy2(model_path, latest_model_path)
+            logger.info(f"Latest model copied (symlink failed): {latest_model_path}")
         
         return str(model_path)
     
@@ -473,9 +473,6 @@ def main():
     
     # Load configuration
     config = {
-        'model_dir': 'models',
-        'artifact_dir': 'artifacts',
-        'report_dir': 'reports',
         'min_accuracy_threshold': 0.6,
         'min_f1_threshold': 0.5,
         'enable_hyperparameter_tuning': not args.no_hyperparameter_tuning
@@ -517,6 +514,7 @@ def main():
             # Save model
             model_path = pipeline.save_model()
             logger.info(f"Model training completed successfully. Model saved to: {model_path}")
+            logger.info(f"All artifacts saved in current directory: {Path.cwd()}")
             
             # Exit code for CI/CD
             sys.exit(0)
