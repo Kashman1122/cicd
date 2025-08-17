@@ -68,7 +68,7 @@ class WineQualityMLPipeline:
     def load_and_validate_data(self, file_path: str) -> pd.DataFrame:
         """Load and validate the dataset"""
         try:
-            file_path="WineQualityMLPipeline.csv"
+            file_path="winedata.csv"
             logger.info(f"Loading data from {file_path}")
 
             # Try different encodings
